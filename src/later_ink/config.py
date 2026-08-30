@@ -160,6 +160,18 @@ def get_wallabag_config() -> dict[str, str] | None:
     return values
 
 
+def get_freshrss_config() -> dict[str, object] | None:
+    """FreshRSS Google Reader API settings, or None if credentials are incomplete."""
+    url = os.environ.get("FRESHRSS_URL", "").strip().rstrip("/")
+    username = os.environ.get("FRESHRSS_USERNAME", "").strip()
+    api_password = os.environ.get("FRESHRSS_API_PASSWORD", "").strip()
+    if not all((url, username, api_password)):
+        return None
+    raw_categories = os.environ.get("FRESHRSS_CATEGORIES", "")
+    categories = tuple(c.strip() for c in raw_categories.split(",") if c.strip())
+    return {"url": url, "username": username, "api_password": api_password, "categories": categories}
+
+
 def get_readwise_categories() -> tuple[str, ...]:
     """Readwise categories to surface, e.g. READWISE_CATEGORIES=article,pdf.
     Defaults to every supported category."""

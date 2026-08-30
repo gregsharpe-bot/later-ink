@@ -17,6 +17,7 @@ from . import __version__, config, opds, pages
 from .cache import EpubCache, build_cache, cache_key
 from .connectors import readwise
 from .connectors.base import ArticleUnavailable, Connector, Folder, UpstreamError
+from .connectors.freshrss import FreshRSSConnector
 from .connectors.readwise import ReadwiseConnector
 from .connectors.wallabag import WallabagConnector
 from .epub import BUILD_VERSION, build_epub
@@ -132,6 +133,9 @@ async def lifespan(app: FastAPI):
     wallabag_cfg = config.get_wallabag_config()
     if wallabag_cfg:
         _connectors["wallabag"] = WallabagConnector(**wallabag_cfg)
+    freshrss_cfg = config.get_freshrss_config()
+    if freshrss_cfg:
+        _connectors["freshrss"] = FreshRSSConnector(**freshrss_cfg)
     yield
     for c in _connectors.values():
         if hasattr(c, "close"):
