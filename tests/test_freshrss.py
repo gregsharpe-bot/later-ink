@@ -78,8 +78,8 @@ def test_category_articles_are_published_newest_first():
     conn = _connector(handler)
     articles, cursor = _run(conn, lambda: conn.list_articles(_category_id("News")))
     assert [article.id for article in articles] == [
-        "tag:google.com,2005:reader/item/new",
-        "tag:google.com,2005:reader/item/old",
+        "new",
+        "old",
     ]
     assert cursor is None
     request = seen[-1]
@@ -100,7 +100,7 @@ def test_last_24_hours_filters_published_time_only():
 
     conn = _connector(handler)
     articles, _ = _run(conn, lambda: conn.list_view_articles(LAST_DAY))
-    assert [article.id for article in articles] == ["tag:google.com,2005:reader/item/new"]
+    assert [article.id for article in articles] == ["new"]
 
 
 def test_get_article_html_uses_post_item_endpoint():

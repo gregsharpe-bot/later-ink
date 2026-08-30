@@ -2,7 +2,6 @@ import asyncio
 import base64
 import time
 from datetime import UTC, datetime, timedelta
-from urllib.parse import quote
 
 import httpx
 
@@ -71,7 +70,10 @@ def _article_from_item(item: dict) -> Article:
     published = _timestamp(item.get("published"))
     author = item.get("author") or None
     return Article(
-        id=str(item["id"]),
+        # FreshRSS uses a Google Reader tag ID whose final hex component is a
+        # stable, URL-safe identifier. The full tag contains slashes, which
+        # would be decoded as path separators by the OPDS download route.
+        id=str(item["id"]).rsplit("/", 1)[-1],
         title=item.get("title") or "Untitled",
         author=str(author) if author else None,
         summary=_item_content(item)[:280] or None,
@@ -203,7 +205,9 @@ class FreshRSSConnector(Connector):
         name = _category_name(folder_id)
         if name is None:
             raise KeyError(folder_id)
-        stream = f"user/-/label/{quote(name, safe='')}"
+        # httpx encodes query parameters. Pre-quoting the category would turn
+        # spaces into %2520 and make FreshRSS look up a different category.
+        stream = f"user/-/label/{name}"
         return await self._list_stream(stream, cursor)
 
     async def list_view_articles(
