@@ -151,6 +151,8 @@ def _freshrss_handler(scenario: str) -> Callable:
             return httpx.Response(401)
         if scenario == "non_json":
             return httpx.Response(200, text="not json")
+        if scenario == "unreachable":
+            raise httpx.ConnectError("no route to host")
         if scenario == "missing":
             return httpx.Response(200, json={"items": []})
         if request.method == "POST":
