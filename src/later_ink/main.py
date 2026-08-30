@@ -660,6 +660,27 @@ async def opds_folder(connector: str, folder_id: str, cursor: str | None = Query
     )
 
 
+@app.api_route("/opds/{connector}/{category_id}/{publisher_id}/", methods=["GET", "HEAD"])
+async def opds_publisher_folder(
+    connector: str,
+    category_id: str,
+    publisher_id: str,
+    cursor: str | None = Query(None),
+):
+    c = _connectors.get(connector)
+    if not c:
+        raise HTTPException(404, f"Connector '{connector}' not found")
+    return await _folder_response(
+        c,
+        publisher_id,
+        cursor,
+        feed_id=f"urn:later-ink:{connector}:{category_id}:{publisher_id}",
+        self_href=f"/opds/{connector}/{category_id}/{publisher_id}/",
+        epub_base=f"/opds/{connector}/articles",
+        start_href="/opds/",
+    )
+
+
 # ------------------------------------------------- multi-tenant mode
 
 
@@ -755,6 +776,27 @@ async def tenant_folder(
         cursor,
         feed_id=f"{_feed_id(secret)}:{folder_id}",
         self_href=f"/{secret}/{folder_id}/",
+        epub_base=f"/{secret}/articles",
+        start_href=f"/{secret}/",
+    )
+
+
+@app.api_route("/{secret}/{category_id}/{publisher_id}/", methods=["GET", "HEAD"])
+async def tenant_publisher_folder(
+    secret: str,
+    category_id: str,
+    publisher_id: str,
+    request: Request,
+    cursor: str | None = Query(None),
+):
+    token = _resolve_secret(secret, request)
+    c = await _tenant_connector(token)
+    return await _folder_response(
+        c,
+        publisher_id,
+        cursor,
+        feed_id=f"{_feed_id(secret)}:{category_id}:{publisher_id}",
+        self_href=f"/{secret}/{category_id}/{publisher_id}/",
         epub_base=f"/{secret}/articles",
         start_href=f"/{secret}/",
     )
