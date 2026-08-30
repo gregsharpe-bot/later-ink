@@ -775,13 +775,29 @@ async def _folder_response(
     # Views share the folder URL space, so a folder id wins if both define one.
     folder = next((f for f in await c.list_folders() if f.id == folder_id), None)
     if folder:
+        subfolders = await c.list_subfolders(folder_id)
+        if subfolders:
+            return Response(
+                content=opds.folder_catalog(
+                    f"{feed_id}:publishers",
+                    folder.title,
+                    subfolders,
+                    base=self_href.rstrip("/"),
+                    start_href=start_href,
+                ),
+                media_type=NAV_MEDIA,
+            )
         articles, next_cursor = await c.list_articles(folder_id, cursor)
     else:
-        view = next((v for v in await c.list_views() if v.id == folder_id), None)
-        if not view:
-            raise HTTPException(404, f"Folder '{folder_id}' not found")
-        folder = view
-        articles, next_cursor = await c.list_view_articles(folder_id, cursor)
+        folder = await c.get_subfolder(folder_id)
+        if folder:
+            articles, next_cursor = await c.list_articles(folder_id, cursor)
+        else:
+            view = next((v for v in await c.list_views() if v.id == folder_id), None)
+            if not view:
+                raise HTTPException(404, f"Folder '{folder_id}' not found")
+            folder = view
+            articles, next_cursor = await c.list_view_articles(folder_id, cursor)
 
     return Response(
         content=opds.article_feed(
@@ -845,6 +861,7 @@ async def _epub_response(
             image_url=article.image_url,
             raw_cover=(article.category == "epub"),
             content_date=article.content_date,
+            publisher=article.publisher,
         )
         epub_bytes = result.data
         # Only a clean render is stored. A degraded one is served — a book

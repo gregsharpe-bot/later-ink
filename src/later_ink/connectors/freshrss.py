@@ -36,6 +36,26 @@ def _category_name(category_id: str) -> str | None:
         return None
 
 
+def _publisher_id(category: str, publisher: str) -> str:
+    value = f"{category}\x00{publisher}"
+    encoded = base64.urlsafe_b64encode(value.encode()).decode().rstrip("=")
+    return f"publisher-{encoded}"
+
+
+def _publisher_parts(folder_id: str) -> tuple[str, str] | None:
+    if not folder_id.startswith("publisher-"):
+        return None
+    encoded = folder_id.removeprefix("publisher-")
+    try:
+        value = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+    except (UnicodeDecodeError, ValueError):
+        return None
+    category, separator, publisher = value.partition("\x00")
+    if not separator or not category or not publisher:
+        return None
+    return category, publisher
+
+
 def _timestamp(value: object) -> datetime | None:
     if isinstance(value, (int, float)):
         return datetime.fromtimestamp(value, UTC).replace(tzinfo=None)
@@ -69,6 +89,8 @@ def _item_url(item: dict) -> str | None:
 def _article_from_item(item: dict) -> Article:
     published = _timestamp(item.get("published"))
     author = item.get("author") or None
+    origin = item.get("origin")
+    publisher = origin.get("title") if isinstance(origin, dict) else None
     return Article(
         # FreshRSS uses a Google Reader tag ID whose final hex component is a
         # stable, URL-safe identifier. The full tag contains slashes, which
@@ -76,6 +98,7 @@ def _article_from_item(item: dict) -> Article:
         id=str(item["id"]).rsplit("/", 1)[-1],
         title=item.get("title") or "Untitled",
         author=str(author) if author else None,
+        publisher=str(publisher) if publisher else None,
         summary=_item_content(item)[:280] or None,
         url=_item_url(item),
         updated=published or datetime.now(UTC).replace(tzinfo=None),
@@ -183,6 +206,29 @@ class FreshRSSConnector(Connector):
             names = [name for name in names if name.casefold() in self._categories]
         return [Folder(_category_id(name), name, "FreshRSS category") for name in names]
 
+    async def list_subfolders(self, folder_id: str) -> list[Folder]:
+        category = _category_name(folder_id)
+        if category is None:
+            return []
+        publishers: set[str] = set()
+        cursor = None
+        while True:
+            articles, cursor = await self._list_stream(f"user/-/label/{category}", cursor)
+            publishers.update(a.publisher for a in articles if a.publisher)
+            if not cursor:
+                break
+        return [
+            Folder(_publisher_id(folder_id, publisher), publisher, "FreshRSS publisher")
+            for publisher in sorted(publishers, key=str.casefold)
+        ]
+
+    async def get_subfolder(self, folder_id: str) -> Folder | None:
+        parts = _publisher_parts(folder_id)
+        if not parts:
+            return None
+        _, publisher = parts
+        return Folder(folder_id, publisher, "FreshRSS publisher")
+
     async def list_views(self) -> list[Folder]:
         return [Folder(LAST_DAY, "Last 24 hours", "Published in the last 24 hours")]
 
@@ -202,6 +248,21 @@ class FreshRSSConnector(Connector):
     async def list_articles(
         self, folder_id: str, cursor: str | None = None
     ) -> tuple[list[Article], str | None]:
+        publisher_parts = _publisher_parts(folder_id)
+        if publisher_parts:
+            category_id, publisher = publisher_parts
+            category = _category_name(category_id)
+            if category is None:
+                raise KeyError(folder_id)
+            matched: list[Article] = []
+            while len(matched) < PER_PAGE:
+                articles, cursor = await self._list_stream(
+                    f"user/-/label/{category}", cursor
+                )
+                matched.extend(a for a in articles if a.publisher == publisher)
+                if not cursor:
+                    break
+            return matched[:PER_PAGE], cursor
         name = _category_name(folder_id)
         if name is None:
             raise KeyError(folder_id)

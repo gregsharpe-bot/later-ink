@@ -9,6 +9,7 @@ from later_ink.connectors.freshrss import (
     LAST_DAY,
     FreshRSSConnector,
     _category_id,
+    _publisher_id,
     _item_url,
 )
 
@@ -36,8 +37,8 @@ def _run(conn, call):
     return asyncio.run(run())
 
 
-def _item(item_id="1", published=1_774_000_000, content="<p>Body</p>"):
-    return {
+def _item(item_id="1", published=1_774_000_000, content="<p>Body</p>", publisher=None):
+    item = {
         "id": f"tag:google.com,2005:reader/item/{item_id}",
         "title": f"Article {item_id}",
         "author": "Author",
@@ -45,6 +46,9 @@ def _item(item_id="1", published=1_774_000_000, content="<p>Body</p>"):
         "canonical": [{"href": "https://example.com/article"}],
         "content": {"content": content},
     }
+    if publisher:
+        item["origin"] = {"title": publisher}
+    return item
 
 
 def test_categories_are_discovered_and_filtered():
@@ -85,6 +89,44 @@ def test_category_articles_are_published_newest_first():
     request = seen[-1]
     assert request.url.params["s"] == "user/-/label/News"
     assert request.url.params["r"] == "d"
+
+
+def test_category_publisher_shelves_are_discovered():
+    def handler(request):
+        if request.url.path.endswith("/accounts/ClientLogin"):
+            return httpx.Response(200, text="Auth=greg/token\n")
+        return httpx.Response(
+            200,
+            json={"items": [_item("one", publisher="Zeta"), _item("two", publisher="Alpha")]},
+        )
+
+    conn = _connector(handler)
+    folders = _run(conn, lambda: conn.list_subfolders(_category_id("News")))
+    assert [(folder.id, folder.title) for folder in folders] == [
+        (_publisher_id(_category_id("News"), "Alpha"), "Alpha"),
+        (_publisher_id(_category_id("News"), "Zeta"), "Zeta"),
+    ]
+
+
+def test_publisher_shelf_lists_only_articles_from_that_publisher():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        if request.url.path.endswith("/accounts/ClientLogin"):
+            return httpx.Response(200, text="Auth=greg/token\n")
+        return httpx.Response(
+            200,
+            json={"items": [_item("keep", publisher="Alpha"), _item("skip", publisher="Zeta")]},
+        )
+
+    conn = _connector(handler)
+    shelf = _publisher_id(_category_id("News"), "Alpha")
+    articles, cursor = _run(conn, lambda: conn.list_articles(shelf))
+    assert [article.id for article in articles] == ["keep"]
+    assert articles[0].publisher == "Alpha"
+    assert cursor is None
+    assert seen[-1].url.params["s"] == "user/-/label/News"
 
 
 def test_last_24_hours_filters_published_time_only():

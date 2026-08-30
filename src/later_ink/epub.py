@@ -382,6 +382,7 @@ async def build_epub(
     raw_cover: bool = False,
     image_client: httpx.AsyncClient | None = None,
     content_date: datetime | None = None,
+    publisher: str | None = None,
 ) -> BuildResult:
     """Convert Readwise html_content into an EPUB.
 
@@ -405,6 +406,9 @@ async def build_epub(
     book.set_language(language or "en")
     if author:
         book.add_author(author)
+    if publisher:
+        book.add_metadata("DC", "publisher", publisher)
+        book.add_metadata("DC", "subject", publisher)
     if source_url:
         book.add_metadata("DC", "source", source_url)
 
