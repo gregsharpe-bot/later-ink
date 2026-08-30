@@ -9,8 +9,8 @@ from later_ink.connectors.freshrss import (
     LAST_DAY,
     FreshRSSConnector,
     _category_id,
-    _publisher_id,
     _item_url,
+    _publisher_id,
 )
 
 
