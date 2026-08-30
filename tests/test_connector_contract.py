@@ -28,11 +28,13 @@ from later_ink.connectors.base import (
     UpstreamError,
     retry_after_seconds,
 )
+from later_ink.connectors.freshrss import FreshRSSConnector, _category_id
 from later_ink.connectors.readwise import ReadwiseConnector
 from later_ink.connectors.wallabag import WallabagConnector
 
 FOLDER_ID_READWISE = "later"
 FOLDER_ID_WALLABAG = "unread"
+FOLDER_ID_FRESHRSS = _category_id("News")
 ARTICLE_ID = "42"
 
 
@@ -128,6 +130,42 @@ def _wallabag_handler(scenario: str) -> Callable:
     return handler
 
 
+def _freshrss_handler(scenario: str) -> Callable:
+    item = {
+        "id": f"tag:google.com,2005:reader/item/{ARTICLE_ID}",
+        "title": "An article",
+        "author": "Author",
+        "published": 1735779845,
+        "canonical": [{"href": "https://example.com/a"}],
+        "content": {"content": "<p>body</p>"},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/accounts/ClientLogin"):
+            if scenario == "unauthorized":
+                return httpx.Response(401)
+            return httpx.Response(200, text="Auth=user/auth\n")
+        if scenario == "error_500":
+            return httpx.Response(500)
+        if scenario == "unauthorized":
+            return httpx.Response(401)
+        if scenario == "non_json":
+            return httpx.Response(200, text="not json")
+        if scenario == "unreachable":
+            raise httpx.ConnectError("no route to host")
+        if scenario == "missing":
+            return httpx.Response(200, json={"items": []})
+        if request.method == "POST":
+            return httpx.Response(200, json={"items": [item]})
+        if request.url.path.endswith("/tag/list"):
+            return httpx.Response(
+                200, json={"tags": [{"id": "user/-/label/News", "type": "folder"}]}
+            )
+        return httpx.Response(200, json={"items": [item]})
+
+    return handler
+
+
 def _build_readwise(handler: Callable) -> tuple[Connector, httpx.AsyncClient]:
     client = httpx.AsyncClient(base_url="https://readwise.test", transport=httpx.MockTransport(handler))
     return ReadwiseConnector("tok", client=client), client
@@ -141,6 +179,20 @@ def _build_wallabag(handler: Callable) -> tuple[Connector, httpx.AsyncClient]:
         client_secret="csec",
         username="user",
         password="pass",
+        client=client,
+    )
+    return connector, client
+
+
+def _build_freshrss(handler: Callable) -> tuple[Connector, httpx.AsyncClient]:
+    client = httpx.AsyncClient(
+        base_url="https://freshrss.test/api/greader.php", transport=httpx.MockTransport(handler)
+    )
+    connector = FreshRSSConnector(
+        url="https://freshrss.test/api/greader.php",
+        username="user",
+        api_password="pass",
+        categories=("News",),
         client=client,
     )
     return connector, client
@@ -161,6 +213,14 @@ SPECS = [
         build=_build_wallabag,
         handlers=_wallabag_handler,
         folder_id=FOLDER_ID_WALLABAG,
+        article_id=ARTICLE_ID,
+    ),
+    ConnectorSpec(
+        label="freshrss",
+        cls=FreshRSSConnector,
+        build=_build_freshrss,
+        handlers=_freshrss_handler,
+        folder_id=FOLDER_ID_FRESHRSS,
         article_id=ARTICLE_ID,
     ),
 ]

@@ -112,3 +112,20 @@ def test_epub_cache_max_bytes_defaults(monkeypatch):
 def test_epub_cache_max_bytes_rejects_garbage(monkeypatch):
     monkeypatch.setenv("EPUB_CACHE_MAX_BYTES", "lots")
     assert config.get_epub_cache_max_bytes() == 512 * 1024 * 1024
+
+
+def test_freshrss_config_requires_credentials_and_reads_categories(monkeypatch):
+    for key in ("FRESHRSS_URL", "FRESHRSS_USERNAME", "FRESHRSS_API_PASSWORD", "FRESHRSS_CATEGORIES"):
+        monkeypatch.delenv(key, raising=False)
+    assert config.get_freshrss_config() is None
+
+    monkeypatch.setenv("FRESHRSS_URL", "https://rss.example.com/api/greader.php/")
+    monkeypatch.setenv("FRESHRSS_USERNAME", "greg")
+    monkeypatch.setenv("FRESHRSS_API_PASSWORD", "api-pass")
+    monkeypatch.setenv("FRESHRSS_CATEGORIES", "News, Technology")
+    assert config.get_freshrss_config() == {
+        "url": "https://rss.example.com/api/greader.php",
+        "username": "greg",
+        "api_password": "api-pass",
+        "categories": ("News", "Technology"),
+    }

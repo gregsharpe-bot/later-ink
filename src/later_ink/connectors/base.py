@@ -39,6 +39,7 @@ class Article:
     id: str
     title: str
     author: str | None = None
+    publisher: str | None = None
     summary: str | None = None
     url: str | None = None
     updated: datetime = field(default_factory=datetime.now)
@@ -214,6 +215,14 @@ class Connector(ABC):
         ids. Empty by default: a connector only offers the views its upstream
         supplies the metadata for."""
         return []
+
+    async def list_subfolders(self, folder_id: str) -> list[Folder]:
+        """Return optional shelves nested beneath a real folder."""
+        return []
+
+    async def get_subfolder(self, folder_id: str) -> Folder | None:
+        """Resolve an optional nested shelf URL."""
+        return None
 
     async def list_view_articles(
         self, view_id: str, cursor: str | None = None

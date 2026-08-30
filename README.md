@@ -97,6 +97,25 @@ Config is read from `$XDG_CONFIG_HOME/later-ink/env` (default
 `~/.config/later-ink/env`), falling back to `./.env`; variables already set in
 the real environment always take precedence.
 
+### FreshRSS
+
+FreshRSS can be served through its Google Reader-compatible API. Enable API
+access in FreshRSS, reset the user's API password, and set the API address and
+credentials:
+
+```bash
+FRESHRSS_URL=https://freshrss.example.com/api/greader.php
+FRESHRSS_USERNAME=your_username
+FRESHRSS_API_PASSWORD=your_api_password
+FRESHRSS_CATEGORIES=News,Technology
+```
+
+Configured categories become OPDS folders. If `FRESHRSS_CATEGORIES` is blank,
+all FreshRSS categories are exposed. A `Last 24 hours` view includes items
+whose published timestamp is within the previous 24 hours, newest first. The
+connector uses the article content returned by FreshRSS; feeds that only retain
+an excerpt will therefore produce an excerpt EPUB.
+
 Your catalog is now at `http://your-host:8000/opds/`.
 
 **KOReader setup:** top menu → magnifying glass → *OPDS catalog* → `+` → enter
@@ -210,10 +229,11 @@ src/later_ink/
     base.py        # Connector interface: folders / views / articles / article HTML
     readwise.py    # Readwise Reader API v3 connector
     wallabag.py    # Wallabag API v2 connector (OAuth2)
+    freshrss.py    # FreshRSS Google Reader-compatible API connector
 ```
 
-Readwise and [Wallabag](https://wallabag.org/) are supported today (set the
-`WALLABAG_*` vars in `.env.example` to enable Wallabag). More connectors
+Readwise, [Wallabag](https://wallabag.org/), and FreshRSS are supported today
+(set the relevant vars in `.env.example` to enable them). More connectors
 (Instapaper) are planned — the connector interface is three required methods.
 
 ## Development
