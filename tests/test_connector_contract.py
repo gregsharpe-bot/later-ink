@@ -28,9 +28,9 @@ from later_ink.connectors.base import (
     UpstreamError,
     retry_after_seconds,
 )
+from later_ink.connectors.freshrss import FreshRSSConnector, _category_id
 from later_ink.connectors.readwise import ReadwiseConnector
 from later_ink.connectors.wallabag import WallabagConnector
-from later_ink.connectors.freshrss import FreshRSSConnector, _category_id
 
 FOLDER_ID_READWISE = "later"
 FOLDER_ID_WALLABAG = "unread"
